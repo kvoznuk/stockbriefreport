@@ -1,0 +1,67 @@
+account:
+  size_usd: 25000
+  max_risk_per_trade_pct: 1.0
+
+watchlist:
+  primary: [SPY, QQQ]
+  expanded: [SPY, QQQ, AAPL, NVDA, TSLA, AMD, META, MSFT, AMZN, GOOGL]
+
+setups:
+  enabled: [ORB, EMA_PULLBACK, VWAP, TIME_WINDOWS, GAP_FILL, FCHOD, MTF_CONFLUENCE]
+
+  rules:
+    ORB:
+      description: "15min Opening Range Breakout"
+      strike_rule: "ATM or 1 strike OTM"
+      dte:
+        SPY_QQQ: 0
+        STOCKS: [2, 5]
+    EMA_PULLBACK:
+      description: "8/20/50 EMA stack pullback"
+      strike_rule: "ATM or 1 strike OTM"
+      dte:
+        SPY_QQQ: [0, 1]
+        STOCKS: [3, 7]
+    VWAP:
+      description: "VWAP Reclaim/Rejection"
+      strike_rule: "ATM or 1 strike OTM"
+      dte:
+        SPY_QQQ_BEFORE_1PM: 0
+        SPY_QQQ_AFTER_1PM: 1
+        STOCKS: [2, 4]
+    TIME_WINDOWS:
+      description: "Power windows: 9:30-9:45, 9:45-10:30, 10:30, 2:00-2:30, 3:00-3:30. Avoid 11:00-13:30 chop."
+      strike_rule: "ATM or 1 strike OTM"
+    GAP_FILL:
+      description: "Target prior day's close"
+      strike_rule: "ATM or 1 strike OTM"
+      dte:
+        SPY_QQQ: [1, 3]
+        STOCKS: [5, 7]
+    FCHOD:
+      description: "First Candle High/Low of Day. Catalyst required."
+      strike_rule: "ATM or 1 strike OTM"
+      dte:
+        ALL: 0
+    MTF_CONFLUENCE:
+      description: "Daily/1hr/15min/5min alignment - higher conviction"
+      strike_rule: "Slightly more OTM acceptable for leverage (~1-2 strikes OTM)"
+      dte:
+        SPY_QQQ: [1, 3]
+        STOCKS: [5, 10]
+
+wheel:
+  csp_target_delta: 0.30
+  vix_min_for_premium_selling: 18
+
+claude:
+  model: "claude-sonnet-4-5"
+  max_tokens: 4000
+
+sms:
+  to: "2403291689@tmomail.net"
+  max_chars: 300
+
+output:
+  html_path: "docs/index.html"
+  archive_dir: "docs/archive"
