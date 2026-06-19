@@ -25,7 +25,7 @@ import pytz
 from .claude_brief import generate_brief
 from .config import load_config, optional_env, require_env
 from .html_renderer import now_et_str, render_html
-from .sms import build_summary, send_sms_via_gmail
+from .notifier import build_summary, send_telegram
 
 
 def _et_now() -> datetime:
@@ -74,7 +74,9 @@ def add_business_days(start: date, n: int) -> date:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate daily pre-market options brief.")
     parser.add_argument("--force", action="store_true", help="Skip the ET time-window guard.")
-    parser.add_argument("--no-sms", action="store_true", help="Skip the SMS step.")
+    parser.add_argument(
+        "--no-notify", action="store_true", help="Skip the Telegram notification step."
+    )
     parser.add_argument(
         "--config", default="config.yaml", help="Path to config.yaml (default: ./config.yaml)"
     )
@@ -141,37 +143,36 @@ def main() -> int:
     archive.write_text(html, encoding="utf-8")
     print(f"[3/4] Archived to {archive}")
 
-    if args.no_sms:
-        print("[4/4] SMS skipped (--no-sms).")
+    if args.no_notify:
+        print("[4/4] Notification skipped (--no-notify).")
         return 0
 
     public_url = optional_env("PUBLIC_BRIEF_URL", "").replace("\xa0", "").strip()
-    sms_body = build_summary(
+    summary = build_summary(
         bias_read=brief.get("market_bias", {}).get("read", "mixed"),
         setup_name=setup_name,
         ticker=ticker,
         direction=direction,
         public_url=public_url or "(brief published)",
-        max_chars=cfg.sms_max_chars,
+        strike_rule=guidance.get("strike_rule", ""),
+        target_expiration=target_expiration,
     )
-    print(f"[4/4] SMS body ({len(sms_body)} chars): {sms_body}")
+    print(f"[4/4] Telegram body ({len(summary)} chars):\n{summary}")
 
-    gmail_user = os.environ.get("GMAIL_USER")
-    gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD")
-    if not gmail_user or not gmail_app_password:
-        print("[warn] GMAIL_USER / GMAIL_APP_PASSWORD not set; skipping SMS send.")
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if not bot_token or not chat_id:
+        print(
+            "[warn] TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID not set; skipping notification.",
+            file=sys.stderr,
+        )
         return 0
 
     try:
-        send_sms_via_gmail(
-            gmail_user=gmail_user,
-            gmail_app_password=gmail_app_password,
-            to_address=cfg.sms_to,
-            body=sms_body,
-        )
-        print(f"[4/4] SMS sent to {cfg.sms_to}")
+        send_telegram(bot_token=bot_token, chat_id=chat_id, text=summary)
+        print(f"[4/4] Telegram message sent to chat_id={chat_id}")
     except Exception as e:
-        print(f"[warn] SMS send failed: {e}", file=sys.stderr)
+        print(f"[warn] Telegram send failed: {e}", file=sys.stderr)
 
     return 0
 

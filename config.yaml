@@ -58,10 +58,6 @@ claude:
   model: "claude-sonnet-4-5"
   max_tokens: 4000
 
-sms:
-  to: "2403291689@tmomail.net"
-  max_chars: 300
-
 output:
   html_path: "docs/index.html"
   archive_dir: "docs/archive"

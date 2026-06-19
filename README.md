@@ -6,7 +6,7 @@ Automated daily pre-market options brief. Every weekday at ~8:45am ET, a GitHub 
 2. Synthesizes the data into a market bias read (trend day vs. chop day) and picks one of your 7 mechanical setups (or "sit out today").
 3. Outputs trade **guidance** — ticker, direction, strike rule (e.g. "ATM or 1 OTM" or "~0.30 delta"), and a target expiration date — not a specific contract. You confirm strike/premium/contract count in your own broker each morning.
 4. Writes a clean HTML page to `docs/index.html`, served by GitHub Pages.
-5. Sends a short SMS summary to your phone via T-Mobile's email-to-SMS gateway.
+5. Sends a short summary to your phone via Telegram bot.
 
 ## Architecture
 
@@ -17,9 +17,9 @@ Automated daily pre-market options brief. Every weekday at ~8:45am ET, a GitHub 
 | Hosting | GitHub Pages (the same repo, `/docs` folder) |
 | **Data source** | **Anthropic Claude with `web_search_20250305` tool — single source for futures, premarket, VIX, calendar, news** |
 | LLM | Anthropic Claude (`claude-sonnet-4-5` by default) |
-| SMS | Gmail SMTP → `2403291689@tmomail.net` |
+| Push notification | Telegram Bot API (free, unlimited) |
 
-No options chain API, no brokerage API, no market data API. Just Anthropic + Gmail.
+No options chain API, no brokerage API, no market data API, no carrier SMS. Just Anthropic + Telegram.
 
 ## Project layout
 
@@ -36,7 +36,7 @@ No options chain API, no brokerage API, no market data API. Just Anthropic + Gma
 │   ├── config.py                        loads config.yaml + env
 │   ├── claude_brief.py                  Anthropic call with web_search
 │   ├── html_renderer.py                 Jinja2 -> HTML
-│   └── sms.py                           Gmail SMTP -> tmomail.net
+│   └── notifier.py                      Telegram Bot API push
 └── README.md
 ```
 
@@ -50,15 +50,18 @@ No options chain API, no brokerage API, no market data API. Just Anthropic + Gma
 - Settings → API Keys → Create Key. Copy the `sk-ant-…` value.
 - Billing → add ~$5 of credit.
 
-### 2. Create a Gmail App Password
+### 2. Create a Telegram bot (5 min, free)
 
-Gmail will not let SMTP log in with your normal password. You need an **App Password**:
-
-1. Go to <https://myaccount.google.com/security>.
-2. Turn on **2-Step Verification** if you haven't already.
-3. Go to <https://myaccount.google.com/apppasswords>.
-4. Choose app: "Mail", device: "Other (custom name)" → name it "StockBriefReport" → **Generate**.
-5. Copy the 16-character password (shown without spaces). Save it.
+1. Install **Telegram** on your phone if you haven't already (App Store / Play Store).
+2. In Telegram, search for **@BotFather** and tap "Start".
+3. Send `/newbot`. Pick a display name (e.g. "Brief Bot") and a unique username ending in `bot` (e.g. `kvoznuk_brief_bot`).
+4. BotFather replies with an **HTTP API token** that looks like
+   `1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ012345678`.
+   This is your **`TELEGRAM_BOT_TOKEN`**. Copy it.
+5. Search for your new bot's username in Telegram, open the chat, and tap "Start" (or send `/start`). This is required so the bot can message you.
+6. In a browser, open `https://api.telegram.org/bot<TOKEN>/getUpdates` (replace `<TOKEN>` with your token from step 4).
+   You'll see JSON. Find `result[0].message.chat.id` — it's a number like `123456789`. That's your **`TELEGRAM_CHAT_ID`**.
+   - If `result` is empty, send your bot another message in Telegram and refresh the URL.
 
 ### 3. Create the GitHub repo + push
 
@@ -80,8 +83,8 @@ Repo on github.com → **Settings** → **Secrets and variables** → **Actions*
 | Name | Value |
 |---|---|
 | `ANTHROPIC_API_KEY` | from step 1 |
-| `GMAIL_USER`        | your full Gmail address, e.g. `you@gmail.com` |
-| `GMAIL_APP_PASSWORD`| 16-char value from step 2 |
+| `TELEGRAM_BOT_TOKEN`| from step 2 (the `1234567890:ABC…` string) |
+| `TELEGRAM_CHAT_ID`  | from step 2 (the numeric chat id) |
 
 Then add one **repository variable** (Settings → Secrets and variables → Actions → Variables tab → New repository variable):
 
@@ -105,7 +108,7 @@ This bypasses the "8:30-9:00am ET only" guard so you can verify the full pipelin
 
 - `docs/index.html` gets overwritten on `main`
 - GH Pages republishes (~30s)
-- You receive an SMS
+- You receive a Telegram message from your bot
 
 Bookmark the Pages URL. You're done.
 
@@ -113,7 +116,7 @@ Bookmark the Pages URL. You're done.
 
 ## What's automated after that
 
-Every weekday at ~8:45am ET, the workflow fires automatically (no laptop required, no manual step). The `docs/index.html` is overwritten in place; your bookmark always shows today's brief. Every prior day is preserved under `docs/archive/YYYY-MM-DD.html`.
+Every weekday at ~8:45am ET, the workflow fires automatically (no laptop required, no manual step). The `docs/index.html` is overwritten in place; your bookmark always shows today's brief. Every prior day is preserved under `docs/archive/YYYY-MM-DD.html`. A Telegram message hits your phone with the bias + setup pick + link.
 
 Two cron entries are in the workflow (`12:45 UTC` and `13:45 UTC`) so the brief lands at 8:45am ET regardless of EDT/EST. The Python script's ET time-window guard ensures only the correct trigger actually does work — the wrong-side trigger no-ops.
 
@@ -128,7 +131,7 @@ cp .env.example .env
 # fill in .env with your real keys
 set -a; source .env; set +a
 
-python -m src.main --force --no-sms      # run, skip SMS
+python -m src.main --force --no-notify   # run, skip Telegram
 open docs/index.html                      # preview
 ```
 
@@ -147,8 +150,6 @@ open docs/index.html                      # preview
 | `wheel.csp_target_delta` | 0.30 | Target delta for premium-selling days |
 | `wheel.vix_min_for_premium_selling` | 18 | Heuristic Claude uses to gate "good for new CSPs" |
 | `claude.model` | `claude-sonnet-4-5` | Anthropic model id (change here if you have access to a newer one) |
-| `sms.to` | `2403291689@tmomail.net` | T-Mobile email-to-SMS gateway |
-| `sms.max_chars` | 300 | Hard cap on SMS body length |
 
 ---
 
@@ -169,7 +170,7 @@ The brief includes a yellow reminder box: confirm the closest available expirati
 
 - **Workflow runs but no commit:** the ET time-window guard skipped this run (e.g. wrong DST trigger). Check the workflow log; this is by design.
 - **Claude returns invalid JSON:** the orchestrator raises and the workflow fails. Re-run; Claude is usually deterministic enough that this is rare. If persistent, lower `claude.max_tokens` or simplify the prompt.
-- **SMS not arriving:** verify Gmail App Password (not your real password). Check workflow log for SMTP errors.
+- **Telegram not arriving:** make sure you've sent `/start` to your bot at least once (bots can't initiate conversations). Verify `TELEGRAM_BOT_TOKEN` is the full `<num>:<string>` token from BotFather, and `TELEGRAM_CHAT_ID` is your numeric chat id from `getUpdates`.
 - **Pages 404:** GitHub Pages takes ~30s after first commit. Confirm Settings → Pages source is `main` / `/docs`.
 
 ---

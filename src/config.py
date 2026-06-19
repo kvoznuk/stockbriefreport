@@ -59,14 +59,6 @@ class Config:
         return int(self.raw["claude"]["max_tokens"])
 
     @property
-    def sms_to(self) -> str:
-        return str(self.raw["sms"]["to"])
-
-    @property
-    def sms_max_chars(self) -> int:
-        return int(self.raw["sms"]["max_chars"])
-
-    @property
     def html_path(self) -> str:
         return str(self.raw["output"]["html_path"])
 
