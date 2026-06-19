@@ -9,7 +9,19 @@ See README for setup. Env vars:
 from __future__ import annotations
 
 import smtplib
+import unicodedata
 from email.message import EmailMessage
+
+
+def _to_sms_ascii(text: str) -> str:
+    """Make text SMS-safe: convert fancy quotes/dashes to ASCII, replace
+    non-breaking spaces, then drop any remaining non-ASCII chars.
+
+    Carrier email-to-SMS gateways often choke on non-ASCII (esp. \\xa0 which
+    can sneak in via clipboard pastes), and SMS itself is GSM 7-bit anyway."""
+    text = text.replace("\xa0", " ")
+    text = unicodedata.normalize("NFKD", text)
+    return text.encode("ascii", "ignore").decode("ascii")
 
 
 def build_summary(
@@ -33,14 +45,14 @@ def build_summary(
     else:
         head = f"{bias}. Setup: {setup} on {ticker} {direction.upper()}."
 
-    full = f"{head} {public_url}".strip()
+    full = _to_sms_ascii(f"{head} {public_url}".strip())
     if len(full) <= max_chars:
         return full
 
     overflow = len(full) - max_chars
     head_trim = max(0, len(head) - overflow - 1)
     head_short = head[:head_trim].rstrip(" .,") + "."
-    return f"{head_short} {public_url}".strip()
+    return _to_sms_ascii(f"{head_short} {public_url}".strip())
 
 
 def send_sms_via_gmail(
@@ -50,11 +62,13 @@ def send_sms_via_gmail(
     to_address: str,
     body: str,
 ) -> None:
+    safe_body = _to_sms_ascii(body)
+
     msg = EmailMessage()
     msg["Subject"] = ""
     msg["From"] = gmail_user
     msg["To"] = to_address
-    msg.set_content(body)
+    msg.set_content(safe_body)
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as s:
         s.login(gmail_user, gmail_app_password)

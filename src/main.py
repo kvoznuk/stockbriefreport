@@ -145,7 +145,7 @@ def main() -> int:
         print("[4/4] SMS skipped (--no-sms).")
         return 0
 
-    public_url = optional_env("PUBLIC_BRIEF_URL", "")
+    public_url = optional_env("PUBLIC_BRIEF_URL", "").replace("\xa0", "").strip()
     sms_body = build_summary(
         bias_read=brief.get("market_bias", {}).get("read", "mixed"),
         setup_name=setup_name,
