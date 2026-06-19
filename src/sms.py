@@ -62,14 +62,21 @@ def send_sms_via_gmail(
     to_address: str,
     body: str,
 ) -> None:
+    safe_user = _to_sms_ascii(gmail_user)
+    safe_to = _to_sms_ascii(to_address)
     safe_body = _to_sms_ascii(body)
+
+    print(
+        f"[sms-debug] from={safe_user!r} to={safe_to!r} body_len={len(safe_body)} "
+        f"body_preview={safe_body[:80]!r}"
+    )
 
     msg = EmailMessage()
     msg["Subject"] = ""
-    msg["From"] = gmail_user
-    msg["To"] = to_address
+    msg["From"] = safe_user
+    msg["To"] = safe_to
     msg.set_content(safe_body)
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as s:
-        s.login(gmail_user, gmail_app_password)
+        s.login(safe_user, gmail_app_password)
         s.send_message(msg)
