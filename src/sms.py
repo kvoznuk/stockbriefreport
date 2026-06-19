@@ -65,10 +65,16 @@ def send_sms_via_gmail(
     safe_user = _to_sms_ascii(gmail_user)
     safe_to = _to_sms_ascii(to_address)
     safe_body = _to_sms_ascii(body)
+    # Google displays app passwords with visual spaces (e.g. "abcd efgh ijkl mnop").
+    # Copy-paste sometimes turns those into \xa0 (non-breaking space). Strip any
+    # whitespace + non-ASCII so the SASL auth string is pure ASCII alphanumerics.
+    safe_password = "".join(
+        c for c in gmail_app_password if c.isascii() and not c.isspace()
+    )
 
     print(
         f"[sms-debug] from={safe_user!r} to={safe_to!r} body_len={len(safe_body)} "
-        f"body_preview={safe_body[:80]!r}"
+        f"pwd_len={len(safe_password)} body_preview={safe_body[:80]!r}"
     )
 
     msg = EmailMessage()
@@ -78,5 +84,5 @@ def send_sms_via_gmail(
     msg.set_content(safe_body)
 
     with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as s:
-        s.login(safe_user, gmail_app_password)
+        s.login(safe_user, safe_password)
         s.send_message(msg)
